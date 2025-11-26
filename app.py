@@ -66,9 +66,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-```
-
-#### **Step 4: Test It**
-In your Codespace terminal, run:
-```bash
-streamlit run app.py
