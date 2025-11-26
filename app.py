@@ -4,7 +4,9 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_openai import ChatOpenAI
-from langchain.chains.question_answering import load_qa_chain
+from langchain.chains import create_retrieval_chain
+from langchain.chains.combine_documents import create_stuff_documents_chain
+from langchain_core.prompts import ChatPromptTemplate
 from langchain.callbacks import get_openai_callback
 import os
 
@@ -30,7 +32,6 @@ def main():
             text += page.extract_text()
             
         # 2. Split Text (Chunking)
-        # We split text into chunks of 1000 characters with 200 overlap to maintain context
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=1000,
             chunk_overlap=200,
@@ -39,30 +40,41 @@ def main():
         chunks = text_splitter.split_text(text)
         
         # 3. Create Embeddings & Vector Store
-        # This converts text chunks into vectors (numbers)
         embeddings = OpenAIEmbeddings()
-        
-        # FAISS (Facebook AI Similarity Search) is our local vector database
         knowledge_base = FAISS.from_texts(chunks, embeddings)
         
         # 4. User Question
         query = st.text_input("Ask a question about your PDF:")
         
         if query:
-            # 5. Search for relevant chunks (Similarity Search)
-            docs = knowledge_base.similarity_search(query)
-            
-            # 6. Initialize LLM
+            # 5. Initialize LLM
             llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
             
-            # 7. Generate Answer using the "stuff" chain (stuffs context into prompt)
-            chain = load_qa_chain(llm, chain_type="stuff")
+            # 6. Create the Chain (Modern LangChain LCEL)
+            # Define prompt
+            prompt = ChatPromptTemplate.from_template("""
+            Answer the following question based only on the provided context:
+
+            <context>
+            {context}
+            </context>
+
+            Question: {input}
+            """)
+
+            # Create a "Stuff" chain (stuffs valid context into prompt)
+            document_chain = create_stuff_documents_chain(llm, prompt)
+
+            # Create the Retrieval Chain (connects FAISS to the Stuff chain)
+            retriever = knowledge_base.as_retriever()
+            retrieval_chain = create_retrieval_chain(retriever, document_chain)
             
+            # 7. Generate Response
             with get_openai_callback() as cb:
-                response = chain.run(input_documents=docs, question=query)
-                print(cb) # Prints token usage to terminal (good for debugging costs)
+                response = retrieval_chain.invoke({"input": query})
+                print(cb)
                 
-            st.write(response)
+            st.write(response["answer"])
 
 if __name__ == '__main__':
     main()
