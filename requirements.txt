@@ -1,9 +1,15 @@
 streamlit
 langchain
 langchain-community
-langchain-core
 langchain-openai
 langchain-text-splitters
 faiss-cpu
 pypdf
 python-dotenv
+tiktoken
+
+### **3. Reboot the App**
+After pushing these changes to GitHub:
+1.  Go to your Streamlit Cloud dashboard.
+2.  Click the **three dots** (⋮) next to your app.
+3.  Click **"Reboot App"**. (This forces it to re-install the new requirements).
