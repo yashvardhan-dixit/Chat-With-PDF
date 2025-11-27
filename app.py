@@ -4,14 +4,12 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.embeddings import OpenAIEmbeddings
 from langchain_community.vectorstores import FAISS
 from langchain_openai import ChatOpenAI
-# UPDATED: Use explicit import paths to avoid ModuleNotFoundError
-from langchain.chains.retrieval import create_retrieval_chain
-from langchain.chains.combine_documents import create_stuff_documents_chain
-from langchain_core.prompts import ChatPromptTemplate
+# UPDATED: Use the stable RetrievalQA chain (Works best on Streamlit Cloud)
+from langchain.chains import RetrievalQA
 from langchain.callbacks import get_openai_callback
 import os
 
-# Sidebar for API Key (Secure way to handle keys in a demo)
+# Sidebar for API Key
 with st.sidebar:
     st.title("🔐 Configuration")
     api_key = st.text_input("Enter your OpenAI API Key:", type="password")
@@ -51,31 +49,19 @@ def main():
             # 5. Initialize LLM
             llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
             
-            # 6. Create the Chain (Modern LangChain LCEL)
-            # Define prompt
-            prompt = ChatPromptTemplate.from_template("""
-            Answer the following question based only on the provided context:
-
-            <context>
-            {context}
-            </context>
-
-            Question: {input}
-            """)
-
-            # Create a "Stuff" chain (stuffs valid context into prompt)
-            document_chain = create_stuff_documents_chain(llm, prompt)
-
-            # Create the Retrieval Chain (connects FAISS to the Stuff chain)
-            retriever = knowledge_base.as_retriever()
-            retrieval_chain = create_retrieval_chain(retriever, document_chain)
+            # 6. Create the Chain (Using RetrievalQA for stability)
+            qa_chain = RetrievalQA.from_chain_type(
+                llm=llm,
+                chain_type="stuff",
+                retriever=knowledge_base.as_retriever()
+            )
             
             # 7. Generate Response
             with get_openai_callback() as cb:
-                response = retrieval_chain.invoke({"input": query})
+                response = qa_chain.invoke({"query": query})
                 print(cb)
                 
-            st.write(response["answer"])
+            st.write(response["result"])
 
 if __name__ == '__main__':
     main()
